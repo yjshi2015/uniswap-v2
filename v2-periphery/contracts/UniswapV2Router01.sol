@@ -1,7 +1,8 @@
 pragma solidity =0.6.6;
 
 import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol';
-import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
+// import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
+import 'https://github.com/Uniswap/solidity-lib/blob/master/contracts/libraries/TransferHelper.sol';
 
 import './libraries/UniswapV2Library.sol';
 import './interfaces/IUniswapV2Router01.sol';
@@ -55,6 +56,18 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
             }
         }
     }
+
+    /**
+     * @desc:增加流动性
+     * 1、计算实际应投入的tokenA、tokenB的数量（符合比例关系）
+     * 2、给pair合约转入实际的amountA、amountB金额
+     * 3、给to用户转入相应的流动性lp（铸币），区分首次添加流动性和非首次添加流动性
+     *  3.1、首次：math.sqrt(amountA, amountB),非首次：math.min(amountA*lp/reserve0, amountB*lp/reserve1)
+     *  3.2、如果开通费率，给平台转入相应的费用（铸币）
+     * 
+     * @Notice:
+     * 1、使用Library库来计算pair地址
+     */
     function addLiquidity(
         address tokenA,
         address tokenB,
@@ -71,6 +84,14 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
         TransferHelper.safeTransferFrom(tokenB, msg.sender, pair, amountB);
         liquidity = IUniswapV2Pair(pair).mint(to);
     }
+
+    /**
+     * 使用Ethers和另一个种token注入流动性，这里Ethers的数量是通过msg.value传值的
+     * Ethers的具体流转过程分为3步：
+     * 1、Ethers转给当前合约router（函数payable关键字处的逻辑）
+     * 2、Ethers兑换成WETH，转给当前合约router（deposit关键字处的逻辑）
+     * 3、WETH转给pair合约（transfer关键字处的逻辑）
+     */
     function addLiquidityETH(
         address token,
         uint amountTokenDesired,
@@ -96,6 +117,13 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
     }
 
     // **** REMOVE LIQUIDITY ****
+    /**
+     * todo syj
+     * 移除了流动性，但是给用户的手续费在哪里？？？
+     * 
+     * 1、销毁liquidity
+     * 2、等比例换算为tokenA、tokenB数量，转给to用户
+     */
     function removeLiquidity(
         address tokenA,
         address tokenB,
@@ -113,6 +141,10 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
         require(amountA >= amountAMin, 'UniswapV2Router: INSUFFICIENT_A_AMOUNT');
         require(amountB >= amountBMin, 'UniswapV2Router: INSUFFICIENT_B_AMOUNT');
     }
+    
+    /**
+     * 将liquidity换成token和Ethers
+     */
     function removeLiquidityETH(
         address token,
         uint liquidity,
@@ -127,13 +159,17 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
             liquidity,
             amountTokenMin,
             amountETHMin,
+            //注意：这里的地址是router，因此先把token转给该合约，而不是to账户
             address(this),
             deadline
         );
         TransferHelper.safeTransfer(token, to, amountToken);
+        //这里把weth提现，也就是router合约有了amountETH数量的Ethers
         IWETH(WETH).withdraw(amountETH);
+        //将Ethers转给指定的to用户,ethers的转账不用transfer，直接call低代码调用传入value即可
         TransferHelper.safeTransferETH(to, amountETH);
     }
+
     function removeLiquidityWithPermit(
         address tokenA,
         address tokenB,
@@ -149,6 +185,7 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
         IUniswapV2Pair(pair).permit(msg.sender, address(this), value, deadline, v, r, s);
         (amountA, amountB) = removeLiquidity(tokenA, tokenB, liquidity, amountAMin, amountBMin, to, deadline);
     }
+    
     function removeLiquidityETHWithPermit(
         address token,
         uint liquidity,
