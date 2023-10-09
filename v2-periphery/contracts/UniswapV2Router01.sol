@@ -185,7 +185,7 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
         IUniswapV2Pair(pair).permit(msg.sender, address(this), value, deadline, v, r, s);
         (amountA, amountB) = removeLiquidity(tokenA, tokenB, liquidity, amountAMin, amountBMin, to, deadline);
     }
-    
+
     function removeLiquidityETHWithPermit(
         address token,
         uint liquidity,
@@ -205,24 +205,40 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
     // requires the initial amount to have already been sent to the first pair
     function _swap(uint[] memory amounts, address[] memory path, address _to) private {
         for (uint i; i < path.length - 1; i++) {
+            //找出此时交易的token对，一个作为输入，一个作为输出
             (address input, address output) = (path[i], path[i + 1]);
+            //排序，使其跟pair合约中token的顺序一致，token0即最小合约
             (address token0,) = UniswapV2Library.sortTokens(input, output);
+            //当前token对的兑换出来的amount
             uint amountOut = amounts[i + 1];
+            //这2个必须有1个为0，即只有一个输出
             (uint amount0Out, uint amount1Out) = input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
+            //如果还没有兑换到最后一个token，那么找出tokenB和tokenC的pair地址，作为to地址
             address to = i < path.length - 2 ? UniswapV2Library.pairFor(factory, output, path[i + 2]) : _to;
+            //调用pair合约，将计算出的输出数量，发送给to地址
             IUniswapV2Pair(UniswapV2Library.pairFor(factory, input, output)).swap(amount0Out, amount1Out, to, new bytes(0));
         }
     }
+    /**
+     * 最基础的swap函数，花费指定数量的tokenA，兑换数量>amountOutMin的tokenB
+     */
     function swapExactTokensForTokens(
+        //使用的tokenA
         uint amountIn,
+        //swap兑换出的tokenB最小数量
         uint amountOutMin,
+        //代币兑换的token对，如果是A->B,B->C,那么这里存储的是[A,B,C]
         address[] calldata path,
+        //swap兑换出的代币发给to地址
         address to,
         uint deadline
     ) external override ensure(deadline) returns (uint[] memory amounts) {
+        //计算出swap前后的token数量集合，第1个元素是tokenA，最后一个元素是tokenC，中间元素是tokenB
         amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
         require(amounts[amounts.length - 1] >= amountOutMin, 'UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
+        //直接将tokenA从当前账户转入pair合约，此时pair合约中的tokenA的balance0增加，reserve0暂时不变
         TransferHelper.safeTransferFrom(path[0], msg.sender, UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]);
+        //循环调用pair的swap
         _swap(amounts, path, to);
     }
     function swapTokensForExactTokens(

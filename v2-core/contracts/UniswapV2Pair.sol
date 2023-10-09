@@ -158,31 +158,48 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
 
     // this low-level function should be called from a contract which performs important safety checks
     function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external lock {
+        //转给用户的钱，有1个大于0就行
         require(amount0Out > 0 || amount1Out > 0, 'UniswapV2: INSUFFICIENT_OUTPUT_AMOUNT');
+        //获取swap前的reserve数量，即上次数量
         (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
+        //转出的金额一定要小于库存数量
         require(amount0Out < _reserve0 && amount1Out < _reserve1, 'UniswapV2: INSUFFICIENT_LIQUIDITY');
 
         uint balance0;
         uint balance1;
+        //花括号可以防止堆栈溢出
         { // scope for _token{0,1}, avoids stack too deep errors
+        //获取当前交易对的token地址
         address _token0 = token0;
         address _token1 = token1;
+        //当然接收者不能是合约自身
         require(to != _token0 && to != _token1, 'UniswapV2: INVALID_TO');
+        //给to地址发送兑换的token币
         if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out); // optimistically transfer tokens
         if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out); // optimistically transfer tokens
+        //如果data存在，则进行闪电贷逻辑
         if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
+        //获取最新库存，token0和token1，一个增加，一个减少
         balance0 = IERC20(_token0).balanceOf(address(this));
         balance1 = IERC20(_token1).balanceOf(address(this));
         }
+        //转入的token数量，举例子来解释该段代码：假如balance0和balance1各有100个，使用10个token0，兑换了15个token1,
+        //则balance0=110,reserve0=100;balance1=85，reserve1=100
         uint amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
+        //
         uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
         require(amount0In > 0 || amount1In > 0, 'UniswapV2: INSUFFICIENT_INPUT_AMOUNT');
         { // scope for reserve{0,1}Adjusted, avoids stack too deep errors
+        //减去3是扣除了0.3%的手续费
         uint balance0Adjusted = balance0.mul(1000).sub(amount0In.mul(3));
+        //因为amount1In是0，所以balance1Adjusted还是原值，保持不变
         uint balance1Adjusted = balance1.mul(1000).sub(amount1In.mul(3));
+        //注意：这里必须是新K >= 旧K,而不是新K == 旧K，后者存在DOS攻击的风险，即attacker向pair中发送一定数量的token，即可
+        //造成DOS攻击
         require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000**2), 'UniswapV2: K');
         }
 
+        //更新reserve
         _update(balance0, balance1, _reserve0, _reserve1);
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
