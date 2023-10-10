@@ -40,6 +40,7 @@ library UniswapV2Library {
     }
 
     // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
+    // △y = [r*△x / (x+r*△x)]*y
     function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
         require(amountIn > 0, 'UniswapV2Library: INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
@@ -50,11 +51,15 @@ library UniswapV2Library {
     }
 
     // given an output amount of an asset and pair reserves, returns a required input amount of the other asset
+    // △x = [△y / r*(y-△y)] * x
     function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) internal pure returns (uint amountIn) {
         require(amountOut > 0, 'UniswapV2Library: INSUFFICIENT_OUTPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
+        //分子
         uint numerator = reserveIn.mul(amountOut).mul(1000);
+        //分母
         uint denominator = reserveOut.sub(amountOut).mul(997);
+        //计算出输入amountIn
         amountIn = (numerator / denominator).add(1);
     }
 
@@ -73,9 +78,12 @@ library UniswapV2Library {
     function getAmountsIn(address factory, uint amountOut, address[] memory path) internal view returns (uint[] memory amounts) {
         require(path.length >= 2, 'UniswapV2Library: INVALID_PATH');
         amounts = new uint[](path.length);
+        //amounts数组按照[输入，输出1,输出2……输出N]的顺序，由于最后1个输出是固定的，所以直接赋值
         amounts[amounts.length - 1] = amountOut;
+        //这里采用倒推的计算方式（从后往前），按照最终的输出，一步步计算出对应的输入
         for (uint i = path.length - 1; i > 0; i--) {
             (uint reserveIn, uint reserveOut) = getReserves(factory, path[i - 1], path[i]);
+            //按照输出值amounts[i]，计算出对应的输入值amounts[i-1]
             amounts[i - 1] = getAmountIn(amounts[i], reserveIn, reserveOut);
         }
     }

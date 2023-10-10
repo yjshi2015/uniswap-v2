@@ -221,6 +221,8 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
     }
     /**
      * 最基础的swap函数，花费指定数量的tokenA，兑换数量>amountOutMin的tokenB
+     * 
+     * △y = r*△x / (x + r*△x) * y
      */
     function swapExactTokensForTokens(
         //使用的tokenA
@@ -241,18 +243,32 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
         //循环调用pair的swap
         _swap(amounts, path, to);
     }
+
+    /**
+     * 根据输出决定输入，基础公式
+     * △x = △y/[r*(y-△y)] * x
+     */
     function swapTokensForExactTokens(
+        //期望得到的token数量
         uint amountOut,
+        //预计的最大token输入数量
         uint amountInMax,
+        //兑换链
         address[] calldata path,
+        //将输出的token给到to地址
         address to,
         uint deadline
     ) external override ensure(deadline) returns (uint[] memory amounts) {
+        //根据输出，计算出输入
         amounts = UniswapV2Library.getAmountsIn(factory, amountOut, path);
+        //计算得到的输入值，要小于输入最大值
         require(amounts[0] <= amountInMax, 'UniswapV2Router: EXCESSIVE_INPUT_AMOUNT');
+        //按照计算得到的token输入值，转给pair合约
         TransferHelper.safeTransferFrom(path[0], msg.sender, UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]);
+        //进行链式兑换
         _swap(amounts, path, to);
     }
+
     function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)
         external
         override
