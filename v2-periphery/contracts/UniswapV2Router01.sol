@@ -269,6 +269,9 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
         _swap(amounts, path, to);
     }
 
+    /**
+     * 花费指定数量的ethers，换取数量>amountOutMin的tokenB
+     */
     function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)
         external
         override
