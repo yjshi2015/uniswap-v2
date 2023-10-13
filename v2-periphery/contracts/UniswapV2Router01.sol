@@ -37,6 +37,7 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
         uint amountBMin
     ) private returns (uint amountA, uint amountB) {
         // create the pair if it doesn't exist yet
+        //交易对pair不存在的话，就创建
         if (IUniswapV2Factory(factory).getPair(tokenA, tokenB) == address(0)) {
             IUniswapV2Factory(factory).createPair(tokenA, tokenB);
         }
@@ -44,6 +45,7 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
         if (reserveA == 0 && reserveB == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);
         } else {
+            //按比例获取另一个token的输入数量
             uint amountBOptimal = UniswapV2Library.quote(amountADesired, reserveA, reserveB);
             if (amountBOptimal <= amountBDesired) {
                 require(amountBOptimal >= amountBMin, 'UniswapV2Router: INSUFFICIENT_B_AMOUNT');
@@ -71,6 +73,7 @@ contract UniswapV2Router01 is IUniswapV2Router01 {
     function addLiquidity(
         address tokenA,
         address tokenB,
+        //todo syj这里的amountADesired、amountBDesired本来就会按占比调整成对应值，后续的比例也都是一样的，min又有什么意义
         uint amountADesired,
         uint amountBDesired,
         uint amountAMin,

@@ -33,6 +33,10 @@ library UniswapV2Library {
     }
 
     // given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
+    /**
+     * 根据公式amountA / amountB = reserveA / reserveB, => amountB = amountA * reserveB /reseveA
+     * 即要满足按比例添加流动性
+     */
     function quote(uint amountA, uint reserveA, uint reserveB) internal pure returns (uint amountB) {
         require(amountA > 0, 'UniswapV2Library: INSUFFICIENT_AMOUNT');
         require(reserveA > 0 && reserveB > 0, 'UniswapV2Library: INSUFFICIENT_LIQUIDITY');
